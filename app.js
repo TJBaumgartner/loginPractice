@@ -2,13 +2,14 @@ const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
 const Schema = mongoose.Schema;
-
+const bcrypt = require('bcryptjs')
 const session = require("express-session");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 
-const mongoDb = "mongodb+srv://admin:Qwe12138.@cluster0.ooifrfu.mongodb.net/?retryWrites=true&w=majority"
-mongoose.connect(mongoDb);
+require('dotenv').config()
+
+mongoose.connect(process.env.URI);
 const db = mongoose.connection;
 db.on("error", console.error.bind(console, "mongo connection error"));
 
@@ -33,9 +34,12 @@ passport.use(
         if (!user) {
           return done(null, false, { message: "Incorrect username" });
         };
-        if (user.password !== password) {
-          return done(null, false, { message: "Incorrect password" });
-        };
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
+          // passwords do not match!
+          console.log('not matching')
+          return done(null, false, { message: "Incorrect password" })
+        }
         return done(null, user);
       } catch(err) {
         return done(err);
@@ -72,12 +76,14 @@ app.post("/log-in", passport.authenticate("local", {successRedirect: "/",failure
 app.get("/sign-up", (req, res) => res.render("sign-up-form"));
 app.post("/sign-up", async (req,res,next) => {
     try{
+        const {username, password} = req.body;
+        const hash = await bcrypt.hash(password, 10);
         const user = new User({
-            username: req.body.username,
-            password: req.body.password,
+            username: username,
+            password: hash
         });
-        const result = await user.save();
-        res.redirect("/");
+        await user.save();
+        res.redirect("/")
     }catch(err){
         return next(err);
     };
